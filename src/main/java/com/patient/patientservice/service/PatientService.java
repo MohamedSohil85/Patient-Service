@@ -32,17 +32,19 @@ public class PatientService {
     }
     public ResponseEntity saveNewPatient(PatientDTO patientDTO){
 
-        List<Patient> patients=patientRepository.findAll();
-        List<PatientDTO>patientDTOS=patientMapper.toDto(patients);
-        for (PatientDTO patientDTO_:patientDTOS){
-            if (patientDTO.getLastName().equalsIgnoreCase(patientDTO_.getLastName()))
-                if (patientDTO.getFirstName().equalsIgnoreCase(patientDTO_.getFirstName())){
-                    return new ResponseEntity<>(patientDTO_, HttpStatus.FOUND);
-                }
+        var patients = patientRepository.findAll();
+        var patientDTOS = patientMapper.toDto(patients);
+
+        var existingPatient = patientDTOS.stream()
+                .filter(dto -> dto.getLastName().equalsIgnoreCase(patientDTO.getLastName())
+                        && dto.getFirstName().equalsIgnoreCase(patientDTO.getFirstName()))
+                .findFirst();
+
+        if (existingPatient.isPresent()) {
+            return new ResponseEntity<>(existingPatient.get(), HttpStatus.FOUND);
         }
 
-
-        Address address=new Address();
+        var address = new Address();
         address.setCountry(patientDTO.getCountry());
         address.setStreet(patientDTO.getStreet());
         address.setCity(patientDTO.getCity());
@@ -50,11 +52,10 @@ public class PatientService {
         address.setState(patientDTO.getState());
         patientDTO.setDateOfRegistration(LocalDateTime.now());
 
-
         addressRepository.save(address);
-        Patient patient=patientMapper.toEntity(patientDTO);
+        var patient = patientMapper.toEntity(patientDTO);
         patient.setAddress(address);
-        return new ResponseEntity(patientRepository.save(patient),HttpStatus.CREATED);
+        return new ResponseEntity<>(patientRepository.save(patient), HttpStatus.CREATED);
     }
 
     public List<PatientDTO>getAllPatients(){
@@ -72,19 +73,20 @@ public class PatientService {
     }
     //change Infos of patient
 
-    public PatientDTO changePatientInfo(PatientDTO patientDTO, Long id)throws ResourceNotFound {
-        Optional<Patient> optionalPatient=patientRepository.findById(id);
-        Patient patient_=optionalPatient.map(patient -> {
-            patient.setEmail(patientDTO.getEmail());
-            patient.setNationality(patientDTO.getNationality());
-            patient.getAddress().setCity(patientDTO.getCity());
-            patient.getAddress().setZipcode(patientDTO.getZipcode());
-            patient.getAddress().setCountry(patientDTO.getCountry());
-            patient.getAddress().setState(patientDTO.getState());
-            patient.getAddress().setStreet(patientDTO.getStreet());
-            patient.setPhoneNumber(patientDTO.getPhoneNumber());
-            return patientRepository.save(patient);
-        }).orElseThrow(()->new ResourceNotFound("Patient could not found"));
-        return patientMapper.toDto(patient_);
+    public PatientDTO changePatientInfo(PatientDTO patientDTO, Long id) throws ResourceNotFound {
+        return patientRepository.findById(id)
+                .map(patient -> {
+                    patient.setEmail(patientDTO.getEmail());
+                    patient.setNationality(patientDTO.getNationality());
+                    var address = patient.getAddress();
+                    address.setCity(patientDTO.getCity());
+                    address.setZipcode(patientDTO.getZipcode());
+                    address.setCountry(patientDTO.getCountry());
+                    address.setState(patientDTO.getState());
+                    address.setStreet(patientDTO.getStreet());
+                    patient.setPhoneNumber(patientDTO.getPhoneNumber());
+                    return patientMapper.toDto(patientRepository.save(patient));
+                })
+                .orElseThrow(() -> new ResourceNotFound("Patient could not found"));
     }
 }
